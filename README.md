@@ -5,9 +5,9 @@ Rs is a minimal, no-dependency build-system cloned from [bs](https://github.com/
 ## Usage
 
 ```sh
-bs ls
-bs <command> [<args>]
-bs [<default-command-args>]
+rs ls
+rs <command> [<args>]
+rs [<default-command-args>]
 ```
 
 Create a folder called `bs`, and put [executable CLI files](https://unix.stackexchange.com/questions/291217/what-does-the-argument-x-means-in-unix-regarding-permissions) written in any language in it.
