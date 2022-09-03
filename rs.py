@@ -75,7 +75,7 @@ def show_rs_help():
 
 
 def list_commands():
-  for file in os.listdir(BUILD_DIR).sort():
+  for file in sorted(os.listdir(BUILD_DIR)):
     execable = os.access(os.path.join(BUILD_DIR, file), os.X_OK)
 
     if execable:
@@ -143,7 +143,7 @@ def main():
     exit(1)
 
   if command == "ls":
-    print("rs: Available rs commands for this project (valid executables marked with *)")
+    print("rs: Available rs commands for this project (executables marked with *)")
 
     list_commands()
     exit(0)
