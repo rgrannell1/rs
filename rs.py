@@ -18,6 +18,9 @@ def error(message: str) -> str:
 def bold(message: str) -> str:
   return f'\033[1m{message}\033[0m'
 
+def blue(message: str) -> str:
+  return f'\033[0;34m{message}\033[0m'
+
 
 helpfile = f"""
 rs: tiny build system
@@ -79,7 +82,7 @@ def list_commands():
     execable = os.access(os.path.join(BUILD_DIR, file), os.X_OK)
 
     if execable:
-      print(f"- {BUILD_DIR}/{file}*")
+      print(blue(f"- {BUILD_DIR}/{file}*"))
     else:
       print(f"- {BUILD_DIR}/{file}")
 
