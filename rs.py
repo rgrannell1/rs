@@ -4,34 +4,54 @@ from pathlib import Path
 import os
 from sys import argv
 import subprocess
+import sys
 
 
-RS_VERSION = '1.0.0'
-BUILD_DIR = './bs'
+RS_VERSION = "2.0.0"
+BUILD_DIR = "./bs"
+NEWLINE = "\n"
+
 
 def info(message: str) -> str:
-  return message
+    return message
+
 
 def error(message: str) -> str:
-  return f'\033[38;2;168;50;72m{message}\033[0m'
+    return f"\033[38;2;168;50;72m{message}\033[0m"
+
 
 def bold(message: str) -> str:
-  return f'\033[1m{message}\033[0m'
+    return f"\033[1m{message}\033[0m"
+
 
 def blue(message: str) -> str:
-  return f'\033[0;34m{message}\033[0m'
+    return f"\033[0;34m{message}\033[0m"
 
 
-helpfile = f"""
+def list_commands() -> list[str]:
+    """List formatted descriptions of each command in the build directory."""
+    out: list[str] = []
+
+    for file in sorted(os.listdir(BUILD_DIR)):
+        execable = os.access(os.path.join(BUILD_DIR, file), os.X_OK)
+
+        if execable:
+            out.append(blue(f"- {BUILD_DIR}/{file}*"))
+        else:
+            out.append(f"- {BUILD_DIR}/{file}")
+
+    return out
+
+
+HELPFILE = f"""
 rs: tiny build system
 
 Usage:
   rs <command> [<args>]
   rs [<default-command-args>]
-  rs ls
 
 Description:
-  Rs is a build-system that runs scripts in a folder.
+  Rs is a build-system that runs CLI scripts in a folder.
 
   1. Create a {BUILD_DIR} directory in your repository root
 
@@ -67,96 +87,102 @@ Description:
 See Also:
   rs is a python-based clone of bs <https://github.com/labaneilers/bs>, with
   a few added features.
+
+~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~ ~~
+
+COMMANDS IN THIS WORKSPACE:
+
+{NEWLINE.join(f"  {comm}" for comm in list_commands())}
 """
 
-def show_rs_help():
-  for line in helpfile.splitlines():
-    if line.strip().startswith('> '):
-      print(bold(line))
-    else:
-      print(info(line))
+
+def eprint(message: str) -> None:
+    print(message, file=sys.stderr)
 
 
-def list_commands():
-  for file in sorted(os.listdir(BUILD_DIR)):
-    execable = os.access(os.path.join(BUILD_DIR, file), os.X_OK)
-
-    if execable:
-      print(blue(f"- {BUILD_DIR}/{file}*"))
-    else:
-      print(f"- {BUILD_DIR}/{file}")
+def show_rs_help() -> None:
+    """Apply ANSI formatting to the help text"""
+    for line in HELPFILE.splitlines():
+        if line.strip().startswith("> "):
+            eprint(bold(line))
+        else:
+            eprint(info(line))
 
 
 def get_script_path(command: str) -> str:
-  match = None
+    # check for matching names with and without extensions
+    for file in os.listdir(BUILD_DIR):
+        name = os.path.basename(file)
+        if name == command:
+            return os.path.join(os.path.join(BUILD_DIR, file))
 
-  for file in os.listdir(BUILD_DIR):
-    name = os.path.basename(file)
-    if name == command:
-      match = os.path.join(os.path.join(BUILD_DIR, file))
-      break
+        name_no_ext = Path(name).with_suffix("").stem
+        if name_no_ext == command:
+            return os.path.join(os.path.join(BUILD_DIR, file))
 
-    name_no_ext = Path(name).with_suffix('').stem
-    if name_no_ext == command:
-      match = os.path.join(os.path.join(BUILD_DIR, file))
-      break
-
-  if not match:
-    match = os.path.join(BUILD_DIR, 'default')
-
-  if not os.path.isfile(match):
-    if match == os.path.join(BUILD_DIR, 'default'):
-      message = f"rs: no file found for '{command}' and default-executable '{BUILD_DIR}/default' is also missing."
-
-      if command == 'list':
-        message = message + ' Did you mean "rl ls"?'
-      else:
-        message = message + ' Please create one of these files.'
-
-      print(message)
-    else:
-      print(error(f"rs: command '{command}' could not be executed as {match} does not exist"))
-
-    exit(1)
-
-  if not os.access(match, os.X_OK):
-    print(error(f"rs: command '{command}' could not be executed as {match} is not marked as executable"))
-    exit(1)
-
-  return match
+    # no matching file found; fall back to `default` instead
+    return os.path.join(BUILD_DIR, "default")
 
 
-def main():
-  if len(argv) < 2:
-    show_rs_help()
-    return
+def validate_script_path(command: str, fpath: str) -> None:
+    # handle missing files
+    if not os.path.isfile(fpath):
+        if fpath == os.path.join(BUILD_DIR, "default"):
+            eprint(
+                f"rs: no file found for '{command}' and default-executable '{BUILD_DIR}/default' is also missing."
+                " Please create one of these files."
+            )
+        else:
+            eprint(
+                error(
+                    f"rs: command '{command}' could not be executed as {fpath} does not exist"
+                )
+            )
 
-  command = argv[1]
+        exit(1)
 
-  if command in {'help', '--help', 'h'}:
-    show_rs_help()
-    return
-
-  if command in {'--version', 'v'}:
-    print(RS_VERSION)
-    return
-
-  if not os.path.isdir(BUILD_DIR):
-    print(error(f"rs: Expected a build-commands directory at {BUILD_DIR}, but none was found"))
-    exit(1)
-
-  if command == "ls":
-    print("rs: Available rs commands for this project (executables marked with *)")
-
-    list_commands()
-    exit(0)
-
-  subargs = argv[2:]
-
-  script_path = get_script_path(command)
-  instance = subprocess.run([script_path] + subargs)
-
-  exit(instance.returncode)
+    if not os.access(fpath, os.X_OK):
+        eprint(
+            error(
+                f"rs: command '{command}' could not be executed as {fpath} is not marked as executable"
+            )
+        )
+        exit(1)
 
 
-main()
+def main() -> None:
+    # too few arguments; show docs
+    if len(argv) < 2:
+        show_rs_help()
+        return
+
+    command = argv[1]
+
+    if command in {"help", "--help", "h"}:
+        show_rs_help()
+        return
+
+    if command in {"--version", "v"}:
+        eprint(RS_VERSION)
+        return
+
+    # check the build directory actually exists
+    if not os.path.isdir(BUILD_DIR):
+        eprint(
+            error(
+                f"rs: Expected a build-commands directory at {BUILD_DIR}, but none was found"
+            )
+        )
+        exit(1)
+
+    # subprocess out to the subcommand, and pass additional arguments to the subcommand
+    script_path = get_script_path(command)
+    validate_script_path(command, script_path)
+
+    instance = subprocess.run([script_path] + argv[2:])
+
+    exit(instance.returncode)
+
+
+if __name__ == "__main__":
+    main()
