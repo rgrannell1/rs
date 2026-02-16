@@ -28,6 +28,8 @@ Or use `rs` build to remove a few keystrokes.
 
 `rs run myargs --my-flags`
 
+Use tab-completions to save more typing; it'll suggest your workspace's commands.
+
 Use
 
 `rs :x`
@@ -44,6 +46,12 @@ to list known commands. That's it!
 
 ```
 sudo cp rs.py /usr/bin/rs
+```
+
+Add this to your `.zshrc`
+
+```
+eval "$(rs :completion-zsh)"
 ```
 
 ## License
