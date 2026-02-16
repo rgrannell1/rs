@@ -12,6 +12,21 @@ BUILD_DIR = "./bs"
 NEWLINE = "\n"
 BUILD_DIRECTORY_EXISTS = os.path.isdir(BUILD_DIR)
 
+ZSH_COMPLETION_SCRIPT = r"""_rs() {
+    local -a cmds
+    cmds=("${(@f)$(rs :completions 2>/dev/null)}")
+    _describe "rs commands" cmds
+}
+compdef _rs rs
+"""
+
+BASH_COMPLETION_SCRIPT = r"""_rs_complete() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  COMPREPLY=($(compgen -W "$(rs :completions 2>/dev/null)" -- "$cur"))
+}
+complete -F _rs_complete rs
+"""
+
 
 def validate_build_directory() -> None:
     """Check that the build directory actually exists"""
@@ -40,13 +55,17 @@ def blue(message: str) -> str:
     return f"\033[0;34m{message}\033[0m"
 
 
-def list_commands() -> list[str]:
+def list_commands(simple: bool = False) -> list[str]:
     """List formatted descriptions of each command in the build directory."""
     out: list[str] = []
 
     for file in sorted(os.listdir(BUILD_DIR)):
         name = Path(file).stem
         execable = os.access(os.path.join(BUILD_DIR, file), os.X_OK)
+
+        if simple:
+            out.append(name)
+            continue
 
         if execable:
             out.append(blue(f"rs {name}"))
@@ -75,6 +94,7 @@ Current Workspace Commands:
 Usage:
   rs <command> [<args>]
   rs :x
+  rs :ls
   rs [<default-command-args>]
 
 Description:
@@ -114,6 +134,9 @@ Description:
 Special Commands:
   :x  - change script permissions to executable
   :ls - list current workspace commands
+  :completions     - list command names (one per line, for scripts)
+  :completion-zsh  - print zsh completion script; add eval "$(rs :completion-zsh)" to .zshrc
+  :completion-bash - print bash completion script; add eval "$(rs :completion-bash)" to .bashrc
 
 See Also:
   rs is a python-based clone of bs <https://github.com/labaneilers/bs>, with
@@ -195,6 +218,15 @@ def run_special_command(command: str) -> None:
         for comm in list_commands():
             eprint(comm)
         return
+    elif command == "completions":
+        for comm in list_commands(simple=True):
+            print(comm)
+    elif command == "completion-zsh":
+        print(ZSH_COMPLETION_SCRIPT, end="")
+        return
+    elif command == "completion-bash":
+        print(BASH_COMPLETION_SCRIPT, end="")
+        return
     else:
         eprint(error(f"rs: unknown special command: {command}"))
         exit(1)
@@ -225,6 +257,10 @@ def main() -> None:
 
     if command in {"--version", "v"}:
         eprint(RS_VERSION)
+        return
+
+    if command in {":completion-zsh", ":completion-bash"}:
+        run_special_command(command[1:])
         return
 
     # check the build directory actually exists; we can't print help
