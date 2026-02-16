@@ -28,6 +28,18 @@ Or use `rs` build to remove a few keystrokes.
 
 `rs run myargs --my-flags`
 
+Use
+
+`rs :x`
+
+to set scripts in the directory to executable
+
+or
+
+`rs :ls`
+
+to list known commands. That's it!
+
 ## Installation
 
 ```
@@ -38,7 +50,7 @@ sudo cp rs.py /usr/bin/rs
 
 The MIT License
 
-Copyright (c) 2025 Róisín Grannell
+Copyright (c) 2026 Róisín Grannell
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

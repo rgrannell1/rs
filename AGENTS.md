@@ -1,0 +1,2 @@
+
+Read ~/Agents/AGENTS.md
