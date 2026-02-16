@@ -13,16 +13,20 @@ NEWLINE = "\n"
 BUILD_DIRECTORY_EXISTS = os.path.isdir(BUILD_DIR)
 
 ZSH_COMPLETION_SCRIPT = r"""_rs() {
-    local -a cmds
-    cmds=("${(@f)$(rs :completions 2>/dev/null)}")
-    _describe "rs commands" cmds
+  local -a cmds
+  cmds=("${(@f)$(rs :completions 2>/dev/null)}")
+  compadd -a cmds
 }
 compdef _rs rs
 """
 
 BASH_COMPLETION_SCRIPT = r"""_rs_complete() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  COMPREPLY=($(compgen -W "$(rs :completions 2>/dev/null)" -- "$cur"))
+  local -a words
+  while IFS= read -r line; do
+    [[ -n $line ]] && words+=("$line")
+  done < <(rs :completions 2>/dev/null)
+  COMPREPLY=($(compgen -W "${words[*]}" -- "$cur"))
 }
 complete -F _rs_complete rs
 """
