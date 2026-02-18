@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import os
+import stat
 from sys import argv
 import subprocess
 import sys
@@ -12,28 +13,43 @@ BUILD_DIR = "./bs"
 NEWLINE = "\n"
 BUILD_DIRECTORY_EXISTS = os.path.isdir(BUILD_DIR)
 
-ZSH_COMPLETION_SCRIPT = r"""_rs() {
+# Register ZSH completions by inspecting the bs directory
+ZSH_COMPLETION_SCRIPT = r"""
+_rs_complete() {
   local -a cmds
-  cmds=("${(@f)$(rs :completions 2>/dev/null)}")
+  cmds=("${(@f)$(rs :completions)}")
+
   compadd -a cmds
 }
-compdef _rs rs
+
+compdef _rs_complete rs
 """
 
-BASH_COMPLETION_SCRIPT = r"""_rs_complete() {
+# Register Bash completions by inspecting the bs directory
+BASH_COMPLETION_SCRIPT = r"""
+_rs_complete() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
   local -a words
+
   while IFS= read -r line; do
     [[ -n $line ]] && words+=("$line")
   done < <(rs :completions 2>/dev/null)
   COMPREPLY=($(compgen -W "${words[*]}" -- "$cur"))
 }
+
 complete -F _rs_complete rs
 """
 
+# Why not save someone googling them?
+COMMON_SHEBANGS = '\n'.join([line for line in [
+    "#! /usr/bin/env python3",
+    "#! /usr/bin/env sh",
+    "#! /usr/bin/env zsh",
+]])
 
 def validate_build_directory() -> None:
     """Check that the build directory actually exists"""
+
     if not os.path.isdir(BUILD_DIR):
         eprint(
             error(
@@ -44,29 +60,39 @@ def validate_build_directory() -> None:
 
 
 def info(message: str) -> str:
+    """Print an info level message"""
+
     return message
 
 
 def error(message: str) -> str:
+    """Return an error level message"""
+
     return f"\033[38;2;168;50;72m{message}\033[0m"
 
 
 def bold(message: str) -> str:
+    """Return a bold message"""
+
     return f"\033[1m{message}\033[0m"
 
 
 def blue(message: str) -> str:
+    """Return a blue message"""
+
     return f"\033[0;34m{message}\033[0m"
 
 
 def list_commands(simple: bool = False) -> list[str]:
     """List formatted descriptions of each command in the build directory."""
+
     out: list[str] = []
 
     for file in sorted(os.listdir(BUILD_DIR)):
         name = Path(file).stem
         execable = os.access(os.path.join(BUILD_DIR, file), os.X_OK)
 
+        # in simple mode, just give the names of the commands without formatting
         if simple:
             out.append(name)
             continue
@@ -149,6 +175,8 @@ See Also:
 
 
 def eprint(message: str) -> None:
+    """Print to stderr"""
+
     print(message, file=sys.stderr)
 
 
@@ -163,6 +191,8 @@ def show_rs_help() -> None:
 
 
 def get_script_path(command: str) -> str:
+    """Get the path to the script that matches the command, or the default script if no match is found"""
+
     # check for matching names with and without extensions
     for file in os.listdir(BUILD_DIR):
         if file == command:
@@ -176,7 +206,9 @@ def get_script_path(command: str) -> str:
     return os.path.join(BUILD_DIR, "default")
 
 
-def validate_script_path(command: str, fpath: str) -> None:
+def validate_script(command: str, fpath: str) -> None:
+    """Check the script is something that exists we can run"""
+
     # handle missing files
     if not os.path.isfile(fpath):
         if fpath == os.path.join(BUILD_DIR, "default"):
@@ -193,6 +225,7 @@ def validate_script_path(command: str, fpath: str) -> None:
 
         exit(1)
 
+    # Check executable
     if not os.access(fpath, os.X_OK):
         eprint(
             error(
@@ -201,20 +234,18 @@ def validate_script_path(command: str, fpath: str) -> None:
         )
         exit(1)
 
-
-def validate_script_contents(command: str, fpath: str) -> None:
-    """Check that we want to actually run this script"""
-
+    # Check shebang line
     with open(fpath) as file:
         first_line = file.readline()
 
     if not first_line.startswith("#!"):
-        eprint(error(f"rs: command '{command}' is missing a shebang line"))
+        eprint(error(f"rs: command '{command}' is missing a shebang line. Common shebang lines are\n{COMMON_SHEBANGS}"))
         exit(1)
 
 
 def run_special_command(command: str) -> None:
-    """Run a special command"""
+    """Run a special internal commands"""
+
     if command == "x":
         change_permissions_mode()
         return
@@ -243,7 +274,10 @@ def change_permissions_mode() -> None:
         fpath = os.path.join(BUILD_DIR, file)
 
         if os.path.isfile(fpath) and not os.access(fpath, os.X_OK):
-            os.chmod(fpath, 0o755)
+            # chmod +x
+            st = os.stat(fpath)
+            os.chmod(fpath, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
             eprint(f"rs: changed permissions of {fpath} to executable")
 
 
@@ -263,11 +297,6 @@ def main() -> None:
         eprint(RS_VERSION)
         return
 
-    if command in {":completion-zsh", ":completion-bash"}:
-        run_special_command(command[1:])
-        return
-
-    # check the build directory actually exists; we can't print help
     validate_build_directory()
 
     if command.startswith(":"):
@@ -277,8 +306,7 @@ def main() -> None:
 
     # subprocess out to the subcommand, and pass additional arguments to the subcommand
     script_path = get_script_path(command)
-    validate_script_path(command, script_path)
-    validate_script_contents(command, script_path)
+    validate_script(command, script_path)
 
     instance = subprocess.run([script_path] + argv[2:])
 
